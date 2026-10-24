@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readConfigFileSnapshotForWrite } from "openclaw/plugin-sdk/config-runtime";
+import { readConfigFileSnapshotForWrite } from "openclaw/plugin-sdk/config-mutation";
 import { runTelegramUserbotStandaloneCli } from "./cli-core";
 
 async function main(): Promise<void> {
