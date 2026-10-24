@@ -1,6 +1,6 @@
 {
   "name": "telegram-userbot",
-  "version": "1.0.2",
+  "version": "1.0.3-dev.1",
   "description": "Connect your personal Telegram account to OpenClaw via MTProto. Your AI assistant responds as you.",
   "main": "./dist/index.js",
   "scripts": {
@@ -34,20 +34,20 @@
       "./dist/index.js"
     ],
     "compat": {
-      "pluginApi": ">=2026.5.7",
-      "minGatewayVersion": "2026.5.7"
+      "pluginApi": ">=2026.10.7",
+      "minGatewayVersion": "2026.10.7"
     },
     "build": {
-      "openclawVersion": "2026.5.7",
-      "pluginSdkVersion": "2026.5.7"
+      "openclawVersion": "2026.10.7",
+      "pluginSdkVersion": "2026.10.7"
     }
   },
   "devDependencies": {
-    "openclaw": "2026.5.7",
+    "openclaw": "2026.10.7",
     "typescript": "^5.9.3"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.5.7"
+    "openclaw": ">=2026.10.7"
   },
   "installDependencies": true,
   "dependencies": {
