@@ -17,7 +17,7 @@ const plugin = {
       descriptors: getTelegramUserbotCliDescriptors()
     });
 
-    api.registerChannel({ plugin: createChannelPlugin(runtimes) });
+    api.registerChannel({ plugin: createChannelPlugin(runtimes, api.runtime) });
   }
 };
 
