@@ -2,13 +2,15 @@
   "id": "telegram-userbot",
   "name": "Telegram Userbot",
   "description": "Connect your personal Telegram account to OpenClaw via MTProto. Your AI assistant responds as you.",
-  "version": "1.0.2",
+  "version": "1.0.3-dev.1",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
     "properties": {}
   },
-  "channels": ["telegram-userbot"],
+  "channels": [
+    "telegram-userbot"
+  ],
   "channelConfigs": {
     "telegram-userbot": {
       "schema": {
@@ -150,6 +152,15 @@
                       }
                     }
                   }
+                },
+                "dmPolicy": {
+                  "type": "string",
+                  "enum": [
+                    "allowlist",
+                    "open",
+                    "disabled"
+                  ],
+                  "default": "allowlist"
                 }
               },
               "required": [
@@ -158,6 +169,15 @@
                 "sessionString"
               ]
             }
+          },
+          "dmPolicy": {
+            "type": "string",
+            "enum": [
+              "allowlist",
+              "open",
+              "disabled"
+            ],
+            "default": "allowlist"
           }
         }
       }
