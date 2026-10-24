@@ -1,3 +1,4 @@
+import type { PluginRuntime } from "openclaw/plugin-sdk/core";
 import {
   buildChannelOutboundSessionRoute,
   createSubsystemLogger,
@@ -71,7 +72,7 @@ function parseOptionalThreadId(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-export const createChannelPlugin = (runtimes: RuntimeMap) => {
+export const createChannelPlugin = (runtimes: RuntimeMap, pluginRuntime: PluginRuntime) => {
   const resolveRuntimeAccountId = (cfg: any, preferred?: string | null): string | undefined => {
     const configured = resolveConfiguredAccountId(cfg, preferred);
     if (configured && runtimes.has(configured)) {
@@ -161,7 +162,7 @@ export const createChannelPlugin = (runtimes: RuntimeMap) => {
         }
 
         const pairing = createChannelPairingController({
-          core: { channel: channelRuntime },
+          core: pluginRuntime,
           channel: "telegram-userbot",
           accountId,
         });
@@ -722,7 +723,7 @@ export const createChannelPlugin = (runtimes: RuntimeMap) => {
             await gram.withTyping(conversationTarget, async () => {
               await dispatchInboundDirectDmWithRuntime({
                 cfg,
-                runtime: { channel: channelRuntime },
+                runtime: pluginRuntime,
                 channel: "telegram-userbot",
                 channelLabel: "Telegram",
                 accountId,
