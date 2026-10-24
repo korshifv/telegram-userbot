@@ -11,9 +11,13 @@ import { readStringOrNumberParam } from "openclaw/plugin-sdk/param-readers";
 import { extractToolSend } from "openclaw/plugin-sdk/tool-send";
 import {
   resolveInboundMentionDecision,
+  dispatchInboundDirectDmWithRuntime,
+  resolveInboundDirectDmAccessWithRuntime,
+  resolveInboundReplyDispatchCounts,
+  hasVisibleInboundReplyDispatch,
 } from "openclaw/plugin-sdk/channel-inbound";
+import { createChannelPairingController } from "openclaw/plugin-sdk/channel-pairing";
 import { resolveInboundRouteEnvelopeBuilderWithRuntime } from "openclaw/plugin-sdk/inbound-envelope";
-import { buildInboundReplyDispatchBase } from "openclaw/plugin-sdk/inbound-reply-dispatch";
 import { NewMessage } from "telegram/events";
 import { GramJsClientManager } from "./gramjs-client";
 import { normalizeTelegramEvent } from "./normalize";
@@ -156,6 +160,11 @@ export const createChannelPlugin = (runtimes: RuntimeMap) => {
           runtimes.delete(accountId);
         }
 
+        const pairing = createChannelPairingController({
+          core: { channel: channelRuntime },
+          channel: "telegram-userbot",
+          accountId,
+        });
         const gram = new GramJsClientManager(account);
         await gram.start();
         runtimes.set(accountId, gram);
@@ -351,6 +360,7 @@ export const createChannelPlugin = (runtimes: RuntimeMap) => {
           const groups = resolveGroups(accountConfig?.groups ?? account?.groups);
           // Only explicitly configured accounts may accept unsolicited DMs.
           const dmPolicy = accountConfig?.dmPolicy === "open" ? "open"
+            : accountConfig?.dmPolicy === "pairing" ? "pairing"
             : accountConfig?.dmPolicy === "disabled" ? "disabled" : "allowlist";
 
             if (normalized.chatType === "group") {
@@ -462,7 +472,7 @@ export const createChannelPlugin = (runtimes: RuntimeMap) => {
                 From: conversationRouteTarget,
                 To: conversationRouteTarget,
                 SessionKey: route.sessionKey,
-                AccountId: route.accountId ?? accountId,
+                AccountId: accountId,
                 ChatType: "group",
                 ConversationLabel: senderLabel,
                 SenderId: senderId,
@@ -489,7 +499,7 @@ export const createChannelPlugin = (runtimes: RuntimeMap) => {
                 senderId,
               });
               rememberGroupReplyAddress({
-                accountId: route.accountId ?? accountId,
+                accountId: accountId,
                 chatId: normalized.chatId,
                 replyToId: normalized.messageId,
                 address: groupReplyAddress,
@@ -515,7 +525,7 @@ export const createChannelPlugin = (runtimes: RuntimeMap) => {
                     sessionKey: route.sessionKey,
                     channel: CHANNEL_ID,
                     to: conversationRouteTarget,
-                    accountId: route.accountId ?? accountId,
+                    accountId: accountId,
                   },
                   onRecordError: (err) => {
                     log?.info?.("telegram-userbot failed to update group last route", {
@@ -527,22 +537,13 @@ export const createChannelPlugin = (runtimes: RuntimeMap) => {
                   },
                 });
 
-                const dispatchBase = buildInboundReplyDispatchBase({
-                  cfg,
-                  channel: "telegram-userbot",
-                  accountId: route.accountId ?? accountId,
-                  route,
-                  storePath,
-                  ctxPayload,
-                  core: { channel: channelRuntime },
-                });
                 const { onModelSelected, ...replyPipeline } = createChannelReplyPipeline({
                   cfg,
                   agentId: route.agentId,
                   channel: "telegram-userbot",
-                  accountId: route.accountId ?? accountId,
+                  accountId: accountId,
                 });
-                const dispatchResult = await dispatchBase.dispatchReplyWithBufferedBlockDispatcher({
+                const dispatchResult = await channelRuntime.reply.dispatchReplyWithBufferedBlockDispatcher({
                   ctx: ctxPayload,
                   cfg,
                   dispatcherOptions: {
@@ -562,7 +563,7 @@ export const createChannelPlugin = (runtimes: RuntimeMap) => {
 
                       const replyToMessageId = payload.replyToId ? Number(payload.replyToId) : Number(normalized.messageId);
                       const rememberedAddress = consumeGroupReplyAddress({
-                        accountId: route.accountId ?? accountId,
+                        accountId: accountId,
                         chatId: normalized.chatId,
                         replyToId: payload.replyToId ?? normalized.messageId,
                       });
@@ -596,11 +597,10 @@ export const createChannelPlugin = (runtimes: RuntimeMap) => {
                   counts: dispatchResult?.counts ?? null,
                 });
 
-                const dispatchCounts = dispatchResult?.counts ?? { tool: 0, block: 0, final: 0 };
-                const nothingDelivered = dispatchResult?.queuedFinal !== true &&
-                  (dispatchCounts.tool ?? 0) === 0 &&
-                  (dispatchCounts.block ?? 0) === 0 &&
-                  (dispatchCounts.final ?? 0) === 0;
+                const dispatchCounts = resolveInboundReplyDispatchCounts(dispatchResult);
+                const nothingDelivered = !hasVisibleInboundReplyDispatch(dispatchResult) &&
+                  dispatchCounts.tool === 0 && dispatchCounts.block === 0 &&
+                  dispatchCounts.final === 0;
 
                 if (nothingDelivered) {
                   const fallbackText = readLatestAssistantFallbackFromTranscript(route.sessionKey, storePath);
@@ -644,7 +644,7 @@ export const createChannelPlugin = (runtimes: RuntimeMap) => {
               return;
             }
 
-            if (dmPolicy === "disabled" || (dmPolicy !== "open" && !isSenderAllowed({
+            if (dmPolicy === "disabled" || (dmPolicy === "allowlist" && !isSenderAllowed({
               allowFrom: directAllowFrom,
               senderId,
               senderUsername: normalized.senderUsername,
@@ -658,97 +658,128 @@ export const createChannelPlugin = (runtimes: RuntimeMap) => {
               return;
             }
 
-            // Public route/envelope and reply APIs replace the removed direct-dm facade.
-            // Text from external chats is never a privileged control command.
-            const { route, buildEnvelope } = resolveInboundRouteEnvelopeBuilderWithRuntime({
+            const access = await resolveInboundDirectDmAccessWithRuntime({
               cfg,
               channel: "telegram-userbot",
               accountId,
-              peer: { kind: "direct", id: senderId },
-              runtime: channelRuntime,
-              sessionStore: cfg?.session?.store,
+              dmPolicy,
+              allowFrom: directAllowFrom,
+              senderId,
+              rawBody: text,
+              runtime: channelRuntime.commands,
+              isSenderAllowed: (_candidateSenderId, allowEntries) => isSenderAllowed({
+                allowFrom: allowEntries,
+                senderId,
+                senderUsername,
+              }),
+              readStoreAllowFrom: pairing.readStoreForDmPolicy,
             });
-            const { storePath, body } = buildEnvelope({
-              channel: "Telegram",
-              from: senderLabel,
-              body: text,
-              timestamp: normalized.timestamp,
-            });
-            const ctxPayload = channelRuntime.reply.finalizeInboundContext({
-              Body: body,
-              BodyForAgent: text,
-              RawBody: text,
-              CommandBody: text,
-              From: `telegram-userbot:${senderId}`,
-              To: `telegram-userbot:${selfId ?? accountId}`,
-              SessionKey: route.sessionKey,
-              AccountId: route.accountId ?? accountId,
-              ChatType: "direct",
-              ConversationLabel: senderLabel,
-              SenderId: senderId,
-              SenderUsername: normalized.senderUsername,
-              SenderName: normalized.senderDisplay,
-              CommandAuthorized: false,
-              Provider: "telegram",
-              Surface: "telegram-userbot",
-              MessageSid: normalized.messageId,
-              MessageSidFull: normalized.messageId,
-              Timestamp: normalized.timestamp,
-              ReplyToId: normalized.replyToMessageId,
-              NativeChannelId: normalized.chatId,
-              OriginatingChannel: "telegram-userbot",
-              OriginatingTo: senderId,
-            });
+
+            if (access.access.decision === "block") {
+              log?.info?.("telegram-userbot blocking inbound direct message", {
+                accountId,
+                chatId: normalized.chatId,
+                messageId: normalized.messageId,
+                senderId,
+                reason: access.access.reason,
+                reasonCode: access.access.reasonCode,
+              });
+              return;
+            }
+
+            if (access.access.decision === "pairing") {
+              await pairing.issueChallenge({
+                senderId,
+                senderIdLine: `Your Telegram user id: ${senderId}`,
+                meta: {
+                  username: normalized.senderUsername,
+                  name: normalized.senderDisplay,
+                },
+                sendPairingReply: async (pairingText) => {
+                  await sendTextToConversation({
+                    text: pairingText,
+                  });
+                },
+                onReplyError: (err) => {
+                  log?.info?.("telegram-userbot pairing reply failed", {
+                    accountId,
+                    chatId: normalized.chatId,
+                    senderId,
+                    error: String(err),
+                  });
+                },
+              });
+
+              log?.info?.("telegram-userbot pairing required for inbound direct message", {
+                accountId,
+                chatId: normalized.chatId,
+                messageId: normalized.messageId,
+                senderId,
+              });
+              return;
+            }
+
             await gram.withTyping(conversationTarget, async () => {
-              await channelRuntime.session.recordInboundSession({
-                storePath,
-                sessionKey: ctxPayload.SessionKey ?? route.sessionKey,
-                ctx: ctxPayload,
-                updateLastRoute: {
-                  sessionKey: route.sessionKey,
-                  channel: CHANNEL_ID,
-                  to: senderId,
-                  accountId: route.accountId ?? accountId,
-                },
-                onRecordError: (err) => log?.error?.("telegram-userbot direct session record failed", {
-                  accountId, chatId: normalized.chatId, error: String(err),
-                }),
-              });
-              const dispatchBase = buildInboundReplyDispatchBase({
+              await dispatchInboundDirectDmWithRuntime({
                 cfg,
+                runtime: { channel: channelRuntime },
                 channel: "telegram-userbot",
-                accountId: route.accountId ?? accountId,
-                route,
-                storePath,
-                ctxPayload,
-                core: { channel: channelRuntime },
-              });
-              const { onModelSelected, ...replyPipeline } = createChannelReplyPipeline({
-                cfg,
-                agentId: route.agentId,
-                channel: "telegram-userbot",
-                accountId: route.accountId ?? accountId,
-              });
-              await dispatchBase.dispatchReplyWithBufferedBlockDispatcher({
-                ctx: ctxPayload,
-                cfg,
-                dispatcherOptions: {
-                  ...replyPipeline,
-                  deliver: async (payload) => {
-                    const outgoing = typeof payload.text === "string" ? payload.text.trim() : "";
-                    if (!outgoing) return;
-                    await sendTextToConversation({
-                      text: outgoing,
-                      replyToMessageId: payload.replyToId ? Number(payload.replyToId) : undefined,
-                    });
-                  },
-                  onError: (err, info) => log?.error?.("telegram-userbot direct reply failed", {
-                    accountId, chatId: normalized.chatId, kind: info.kind, error: String(err),
-                  }),
+                channelLabel: "Telegram",
+                accountId,
+                peer: {
+                  kind: "direct",
+                  id: senderId,
                 },
-                replyOptions: { onModelSelected },
+                senderId,
+                senderAddress: `telegram:${senderId}`,
+                recipientAddress: selfId ? `telegram:${selfId}` : `telegram:${accountId}`,
+                conversationLabel: senderLabel,
+                rawBody: text,
+                messageId: normalized.messageId,
+                timestamp: normalized.timestamp,
+                commandAuthorized: access.commandAuthorized,
+                provider: "telegram",
+                surface: "telegram-userbot",
+                originatingChannel: "telegram-userbot",
+                originatingTo: senderId,
+                extraContext: {
+                  SenderUsername: normalized.senderUsername,
+                  SenderName: normalized.senderDisplay,
+                  ReplyToId: normalized.replyToMessageId,
+                  NativeChannelId: normalized.chatId,
+                },
+                deliver: async (payload) => {
+                  const outboundText = typeof payload.text === "string" ? payload.text.trim() : "";
+                  if (!outboundText) {
+                    return;
+                  }
+
+                  await sendTextToConversation({
+                    text: outboundText,
+                    replyToMessageId: payload.replyToId ? Number(payload.replyToId) : undefined,
+                  });
+                },
+                onRecordError: (err) => {
+                  log?.info?.("telegram-userbot failed to record inbound session", {
+                    accountId,
+                    chatId: normalized.chatId,
+                    messageId: normalized.messageId,
+                    error: String(err),
+                  })
+                },
+                onDispatchError: (err, info) => {
+                  log?.info?.("telegram-userbot failed to dispatch reply", {
+                    accountId,
+                    chatId: normalized.chatId,
+                    messageId: normalized.messageId,
+                    kind: info.kind,
+                    error: String(err),
+                  });
+                },
               });
-            }, { readMessageId: Number(normalized.messageId) });
+            }, {
+              readMessageId: Number(normalized.messageId),
+            });
 
             log?.info?.("telegram-userbot inbound handled", {
               accountId,
