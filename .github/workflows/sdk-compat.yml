@@ -1,0 +1,22 @@
+name: OpenClaw SDK compatibility
+
+on:
+  push:
+    branches: [openclaw-2026.10]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26.12.1'
+          cache: npm
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Verify exported SDK imports and privacy expectations
+        run: node --test tests/compat.test.mjs
+      - name: Compile TypeScript
+        run: npm run build
