@@ -1,7 +1,8 @@
 import readline from "node:readline";
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions";
-import { readConfigFileSnapshotForWrite, type OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
+import { readConfigFileSnapshotForWrite } from "openclaw/plugin-sdk/config-mutation";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/config-contracts";
 import { CHANNEL_ID } from "./constants";
 import { createConfigBackup, updateConfigFileDirectly } from "./update-config";
 
