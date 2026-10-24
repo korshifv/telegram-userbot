@@ -447,8 +447,9 @@ async function writeConfigAtomically(configPath: string, raw: string): Promise<v
   const tempPath = `${configPath}.tmp-${process.pid}-${Date.now()}`;
 
   try {
-    await fs.writeFile(tempPath, raw, "utf8");
+    await fs.writeFile(tempPath, raw, { encoding: "utf8", mode: 0o600 });
     await fs.rename(tempPath, configPath);
+    await fs.chmod(configPath, 0o600);
   } catch (error) {
     await fs.unlink(tempPath).catch(() => undefined);
     throw error;
@@ -462,7 +463,8 @@ export async function createConfigBackup(configPath: string): Promise<string | n
   }
 
   const backupPath = buildConfigBackupPath(configPath);
-  await fs.writeFile(backupPath, raw, "utf8");
+  await fs.writeFile(backupPath, raw, { encoding: "utf8", mode: 0o600 });
+  await fs.chmod(backupPath, 0o600);
   return backupPath;
 }
 
