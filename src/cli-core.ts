@@ -170,20 +170,17 @@ async function runTelegramUserbotAuth(config: OpenClawConfig): Promise<void> {
     const auth = await runTelegramAuthorization(prompt);
     console.log("Telegram authorization completed successfully.");
     console.log("");
-    console.log("Session string:");
-    console.log(auth.sessionString);
-    console.log("");
+    console.log("Telegram session credentials are intentionally not printed.");
 
     const defaultAccountId = resolveDefaultAccountId(config);
     const rawAccountId = await prompt.ask(`Enter account id for config [${defaultAccountId}]: `);
     const accountId = rawAccountId.trim() || defaultAccountId;
-    const shouldUpdateConfig = await prompt.askYesNo("Update OpenClaw config automatically? [y/N]: ", false);
+    const shouldUpdateConfig = await prompt.askYesNo("Save Telegram credentials to the local OpenClaw config? [Y/n]: ", true);
     const { snapshot } = await readConfigFileSnapshotForWrite();
 
     if (!shouldUpdateConfig) {
       console.log("");
-      console.log("JSON fragment for manual insertion:");
-      console.log(JSON.stringify(buildConfigFragment(accountId, auth), null, 2));
+      console.log("Credentials were not saved. Rerun --auth and choose local config storage.");
       printRestartNotice();
       return;
     }
@@ -192,8 +189,7 @@ async function runTelegramUserbotAuth(config: OpenClawConfig): Promise<void> {
       console.log("");
       console.log("Automatic config update is unavailable because openclaw.json was not found.");
       console.log("");
-      console.log("JSON fragment for manual insertion:");
-      console.log(JSON.stringify(buildConfigFragment(accountId, auth), null, 2));
+      console.log("Credentials were not saved. Rerun --auth and choose local config storage.");
       printRestartNotice();
       return;
     }
@@ -222,8 +218,7 @@ async function runTelegramUserbotAuth(config: OpenClawConfig): Promise<void> {
         }
       }
       console.log("");
-      console.log("JSON fragment for manual insertion:");
-      console.log(JSON.stringify(buildConfigFragment(accountId, auth), null, 2));
+      console.log("Credentials were not saved. Rerun --auth and choose local config storage.");
       printRestartNotice();
     }
   } finally {
