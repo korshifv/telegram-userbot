@@ -61,6 +61,6 @@ For a public-facing dedicated account, `dmPolicy: "open"` must be set **explicit
 ## Known gaps
 
 - Initial compatibility code has not been tested end to end with a Telegram account. Build and Gateway plugin load come first.
-- Pairing challenges provided by the removed `direct-dm` facade were not carried over; use an explicit allowlist.
+- Pairing is available through the public `channel-inbound` helpers when `dmPolicy: "pairing"` is configured.
 - Media/reaction support and proactive message sending require live integration tests.
 - ClawHub package `1.0.2` is **not** this fork; install locally from this branch.
