@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/config-contracts";
 import { CLI_COMMAND } from "./constants";
 import { runTelegramUserbotCliFlags } from "./cli-core";
 
