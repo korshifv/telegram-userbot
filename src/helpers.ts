@@ -208,15 +208,15 @@ function resolveAllowFrom(value: unknown): string[] {
 
   if (typeof value === "string" || typeof value === "number") {
     const entry = String(value).trim();
-    return entry ? [ entry ] : [ "*" ];
+    return entry ? [ entry ] : [];
   }
 
   if (!Array.isArray(value)) {
-    return [ "*" ];
+    return [];
   }
 
   const entries = value.map((entry) => String(entry).trim()).filter(Boolean);
-  return entries.length > 0 ? entries : [ "*" ];
+  return entries;
 }
 
 function resolveGroupPolicy(value: unknown): "open" | "mention" {
