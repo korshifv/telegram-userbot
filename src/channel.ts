@@ -434,7 +434,7 @@ export const createChannelPlugin = (runtimes: RuntimeMap) => {
                 wasMentioned,
                 wasReplyToSelf,
                 shouldSkip: mentionDecision.shouldSkip,
-                text,
+                textLength: text.length,
               });
 
               if (groupConfig.groupPolicy === "mention" && mentionDecision.shouldSkip && !wasReplyToSelf) {
@@ -553,7 +553,7 @@ export const createChannelPlugin = (runtimes: RuntimeMap) => {
                         accountId,
                         chatId: normalized.chatId,
                         messageId: normalized.messageId,
-                        payloadText: outboundText,
+                        payloadLength: outboundText.length,
                         payloadReplyToId: payload.replyToId ?? null,
                       });
                       if (!outboundText) {
