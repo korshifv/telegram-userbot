@@ -58,14 +58,9 @@ function buildAccountPayload(auth: TelegramAuthResult): Record<string, unknown> 
 function buildAccountConfigFragment(auth: TelegramAuthResult): Record<string, unknown> {
   return {
     ...buildAccountPayload(auth),
-    allowFrom: [ "*" ],
-    groups: {
-      "*": {
-        enabled: true,
-        groupPolicy: "mention",
-        allowFrom: [ "*" ],
-      },
-    },
+    dmPolicy: "allowlist",
+    allowFrom: [],
+    groups: {},
   };
 }
 
@@ -87,14 +82,9 @@ function applyAuthToConfig(config: OpenClawConfig, accountId: string, auth: Tele
             ...existingAccount,
             ...buildAccountPayload(auth),
             enabled: existingAccount.enabled ?? true,
-            allowFrom: existingAccount.allowFrom ?? [ "*" ],
-            groups: existingAccount.groups ?? {
-              "*": {
-                enabled: true,
-                groupPolicy: "mention",
-                allowFrom: [ "*" ],
-              },
-            },
+            dmPolicy: existingAccount.dmPolicy ?? "allowlist",
+            allowFrom: existingAccount.allowFrom ?? [],
+            groups: existingAccount.groups ?? {},
           },
         },
       },
