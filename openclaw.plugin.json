@@ -157,6 +157,7 @@
                   "type": "string",
                   "enum": [
                     "allowlist",
+                    "pairing",
                     "open",
                     "disabled"
                   ],
@@ -174,6 +175,7 @@
             "type": "string",
             "enum": [
               "allowlist",
+              "pairing",
               "open",
               "disabled"
             ],
