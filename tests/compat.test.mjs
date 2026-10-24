@@ -34,5 +34,6 @@ test("deny inbound messages when no allowlist is configured", () => {
   assert.match(helpers, /if \(!Array\.isArray\(value\)\)\s*\{\s*return \[\];/);
   const channel = readFileSync("src/channel.ts", "utf8");
   assert.match(channel, /dmPolicy === "disabled"/);
-  assert.match(channel, /CommandAuthorized: false/);
+  assert.match(channel, /resolveInboundDirectDmAccessWithRuntime/);
+  assert.match(channel, /commandAuthorized: access.commandAuthorized/);
 });
